@@ -1,10 +1,11 @@
-"""Точка входа CLI (этап 4: + обратные зависимости)."""
+"""Точка входа CLI (этап 5: полный функционал)."""
 
 import argparse
 import sys
 from pathlib import Path
 
 from apk_parser import direct_dependencies
+from ascii_tree import render_tree
 from config import Config, dump_config, load_config
 from errors import (
     ConfigError,
@@ -14,6 +15,7 @@ from errors import (
 )
 from graph import DependencyGraph
 from traversal import bfs_recursive, reverse_dependencies
+from visualizer import save_svg
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -99,6 +101,15 @@ def _run_stage4(
         print(node)
 
 
+def _run_stage5(config: Config, graph: DependencyGraph) -> None:
+    """Этап 5: сохранить SVG и, опционально, ASCII-дерево."""
+    save_svg(graph, Path(config.output_image))
+    print(f"SVG сохранён в {config.output_image}")
+    if config.ascii_tree:
+        print("== ASCII-дерево ==")
+        print(render_tree(graph, config.package, config.max_depth))
+
+
 def main(argv: list[str] | None = None) -> int:
     """Точка входа программы."""
     args = _build_parser().parse_args(argv)
@@ -119,6 +130,7 @@ def main(argv: list[str] | None = None) -> int:
         _run_stage3(config, graph)
         if args.reverse:
             _run_stage4(config, graph, args.reverse)
+        _run_stage5(config, graph)
         return 0
 
     try:
@@ -129,4 +141,5 @@ def main(argv: list[str] | None = None) -> int:
     _run_stage3(config, graph)
     if args.reverse:
         _run_stage4(config, graph, args.reverse)
+    _run_stage5(config, graph)
     return 0
