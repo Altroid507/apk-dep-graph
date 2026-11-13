@@ -1,4 +1,4 @@
-"""Точка входа CLI (этап 2: конфигурация + прямые зависимости)."""
+"""Точка входа CLI (этап 3: граф зависимостей)."""
 
 import argparse
 import sys
@@ -6,7 +6,14 @@ from pathlib import Path
 
 from apk_parser import direct_dependencies
 from config import Config, dump_config, load_config
-from errors import ConfigError, PackageNotFoundError, RepositoryError
+from errors import (
+    ConfigError,
+    GraphFileError,
+    PackageNotFoundError,
+    RepositoryError,
+)
+from graph import DependencyGraph
+from traversal import bfs_recursive
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -33,14 +40,52 @@ def _print_config(config: Config) -> None:
         print(line)
 
 
-def _run_stage2(config: Config) -> None:
-    """Этап 2: вывести прямые зависимости пакета."""
+def _load_test_graph(config: Config) -> DependencyGraph:
+    """Загрузить граф из локального текстового файла.
+
+    Формат: по одному ребру ``A B`` на строку, имена —
+    большими латинскими буквами.
+    """
+    path = Path(config.repository)
+    if not path.is_file():
+        raise GraphFileError(f"Файл тестового графа не найден: {path}")
+    graph = DependencyGraph()
+    for lineno, line in enumerate(path.read_text().splitlines(), 1):
+        line = line.strip()
+        if not line or line.startswith("#"):
+            continue
+        if " " not in line:
+            raise GraphFileError(
+                f"Строка {lineno}: ожидался формат 'A B'"
+            )
+        source, target = line.split(maxsplit=1)
+        if not source.isupper() or not target.isupper():
+            raise GraphFileError(
+                f"Строка {lineno}: имена должны быть заглавными"
+            )
+        graph.add_edge(source, target)
+    return graph
+
+
+def _build_real_graph(config: Config) -> DependencyGraph:
+    """Построить граф из реального apk-репозитория."""
     direct = direct_dependencies(
         config.repository, config.package, config.package_version
     )
-    print("== Прямые зависимости ==")
+    graph = DependencyGraph()
+    graph.edges.setdefault(config.package, [])
     for dep in direct:
-        print(dep)
+        graph.add_edge(config.package, dep)
+    return graph
+
+
+def _run_stage3(config: Config, graph: DependencyGraph) -> None:
+    """Этап 3: вывести транзитивный граф зависимостей."""
+    nodes = bfs_recursive(graph, config.package, config.max_depth)
+    print("== Граф зависимостей ==")
+    for node in nodes:
+        deps = ", ".join(graph.neighbors(node)) or "-"
+        print(f"{node}: {deps}")
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -54,9 +99,19 @@ def main(argv: list[str] | None = None) -> int:
 
     _print_config(config)
 
+    if config.test_mode:
+        try:
+            graph = _load_test_graph(config)
+        except GraphFileError as exc:
+            print(f"Ошибка графа: {exc}", file=sys.stderr)
+            return 1
+        _run_stage3(config, graph)
+        return 0
+
     try:
-        _run_stage2(config)
+        graph = _build_real_graph(config)
     except (RepositoryError, PackageNotFoundError) as exc:
         print(f"Ошибка репозитория: {exc}", file=sys.stderr)
         return 1
+    _run_stage3(config, graph)
     return 0
