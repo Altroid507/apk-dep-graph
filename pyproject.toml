@@ -1,0 +1,12 @@
+[project]
+name = "apk-dep-graph"
+version = "0.5.0"
+description = "Dependency graph visualizer for Alpine Linux (apk)"
+requires-python = ">=3.11"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+
+[tool.ruff]
+line-length = 80
