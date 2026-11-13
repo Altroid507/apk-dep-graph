@@ -1,4 +1,4 @@
-"""Точка входа CLI (этап 3: граф зависимостей)."""
+"""Точка входа CLI (этап 4: + обратные зависимости)."""
 
 import argparse
 import sys
@@ -13,7 +13,7 @@ from errors import (
     RepositoryError,
 )
 from graph import DependencyGraph
-from traversal import bfs_recursive
+from traversal import bfs_recursive, reverse_dependencies
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -30,6 +30,11 @@ def _build_parser() -> argparse.ArgumentParser:
         type=Path,
         help="Путь к CSV-файлу конфигурации",
     )
+    parser.add_argument(
+        "--reverse",
+        metavar="PACKAGE",
+        help="Показать обратные зависимости для PACKAGE",
+    )
     return parser
 
 
@@ -41,11 +46,7 @@ def _print_config(config: Config) -> None:
 
 
 def _load_test_graph(config: Config) -> DependencyGraph:
-    """Загрузить граф из локального текстового файла.
-
-    Формат: по одному ребру ``A B`` на строку, имена —
-    большими латинскими буквами.
-    """
+    """Загрузить граф из локального текстового файла."""
     path = Path(config.repository)
     if not path.is_file():
         raise GraphFileError(f"Файл тестового графа не найден: {path}")
@@ -88,6 +89,16 @@ def _run_stage3(config: Config, graph: DependencyGraph) -> None:
         print(f"{node}: {deps}")
 
 
+def _run_stage4(
+    config: Config, graph: DependencyGraph, target: str
+) -> None:
+    """Этап 4: вывести обратные зависимости."""
+    reverse = reverse_dependencies(graph, target, config.max_depth)
+    print(f"== Обратные зависимости {target} ==")
+    for node in reverse:
+        print(node)
+
+
 def main(argv: list[str] | None = None) -> int:
     """Точка входа программы."""
     args = _build_parser().parse_args(argv)
@@ -106,6 +117,8 @@ def main(argv: list[str] | None = None) -> int:
             print(f"Ошибка графа: {exc}", file=sys.stderr)
             return 1
         _run_stage3(config, graph)
+        if args.reverse:
+            _run_stage4(config, graph, args.reverse)
         return 0
 
     try:
@@ -114,4 +127,6 @@ def main(argv: list[str] | None = None) -> int:
         print(f"Ошибка репозитория: {exc}", file=sys.stderr)
         return 1
     _run_stage3(config, graph)
+    if args.reverse:
+        _run_stage4(config, graph, args.reverse)
     return 0

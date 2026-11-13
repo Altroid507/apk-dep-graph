@@ -44,3 +44,11 @@ def _bfs_level(
         _bfs_level(
             graph, next_frontier, depth + 1, max_depth, visited, result
         )
+
+
+def reverse_dependencies(
+    graph: DependencyGraph, target: str, max_depth: int
+) -> list[str]:
+    """Вернуть пакеты, которые (транзитивно) зависят от ``target``."""
+    reversed_graph = graph.reverse()
+    return bfs_recursive(reversed_graph, target, max_depth)

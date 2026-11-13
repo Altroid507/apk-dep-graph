@@ -2,6 +2,7 @@
 
 from graph import DependencyGraph
 from traversal import bfs_recursive
+from traversal import reverse_dependencies
 
 
 def _simple_graph():
@@ -34,3 +35,10 @@ def test_bfs_unknown_start():
     """Неизвестный стартовый узел даёт пустой результат."""
     graph = _simple_graph()
     assert bfs_recursive(graph, "Z", 5) == []
+
+
+def test_reverse_dependencies():
+    """Обратные зависимости находятся через обратный граф."""
+    graph = _simple_graph()
+    result = reverse_dependencies(graph, "D", 5)
+    assert set(result) == {"D", "B", "C", "A"}
